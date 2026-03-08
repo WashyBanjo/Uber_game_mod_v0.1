@@ -47,16 +47,37 @@ class RouteSampler:
         edge = self.road_graph.edges[cursor.edge_id]
         return edge.lines[cursor.line_index]
 
-    def _next_edge_id(self, edge_id: str) -> str:
+    def choose_next_edge_id(
+        self,
+        edge_id: str,
+        overrides: dict[str, str] | None = None,
+    ) -> str:
         edge = self.road_graph.edges[edge_id]
+
+        override_edge_id = None
+        if overrides:
+            override_edge_id = overrides.get(edge_id)
+        if override_edge_id in edge.next_edge_ids:
+            return override_edge_id
+
+        default_next = self._default_route_next.get(edge_id)
+        if default_next in edge.next_edge_ids:
+            return default_next
+
         if edge.next_edge_ids:
             return edge.next_edge_ids[0]
-        return self._default_route_next.get(edge_id, self.default_route_edge_ids[0])
+
+        return self.default_route_edge_ids[0]
 
     def _prev_edge_id(self, edge_id: str) -> str:
         return self._default_route_prev.get(edge_id, self.default_route_edge_ids[-1])
 
-    def advance_cursor(self, cursor: RouteSampleCursor, steps: int) -> RouteSampleCursor:
+    def advance_cursor(
+        self,
+        cursor: RouteSampleCursor,
+        steps: int,
+        overrides: dict[str, str] | None = None,
+    ) -> RouteSampleCursor:
         if steps == 0:
             return RouteSampleCursor(cursor.edge_id, cursor.line_index)
 
@@ -69,7 +90,7 @@ class RouteSampler:
                 edge = self.road_graph.edges[edge_id]
                 line_index += 1
                 if line_index >= len(edge.lines):
-                    edge_id = self._next_edge_id(edge_id)
+                    edge_id = self.choose_next_edge_id(edge_id, overrides=overrides)
                     line_index = 0
                 remaining -= 1
         else:
@@ -97,7 +118,12 @@ class RouteSampler:
         line.road_color = source_line.road_color
         return line
 
-    def sample_forward(self, cursor: RouteSampleCursor, n_segments: int) -> list[Line]:
+    def sample_forward(
+        self,
+        cursor: RouteSampleCursor,
+        n_segments: int,
+        overrides: dict[str, str] | None = None,
+    ) -> list[Line]:
         sampled: list[Line] = []
 
         current_edge_id = cursor.edge_id
@@ -112,7 +138,7 @@ class RouteSampler:
             if len(sampled) >= n_segments:
                 break
 
-            current_edge_id = self._next_edge_id(current_edge_id)
+            current_edge_id = self.choose_next_edge_id(current_edge_id, overrides=overrides)
             local_index = 0
 
         return sampled

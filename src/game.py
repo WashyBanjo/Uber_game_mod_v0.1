@@ -28,7 +28,9 @@ class Game:
 
         self.current_edge_id = self.route_edge_ids[0]
         self.current_line_index = 0
+        self.pending_next_edge_id: str | None = None
 
+        self.branch_choice_threshold = 30
         self.sampling_window = SHOW_N_SEGMENTS + 8
         self.lines = self.route_sampler.sample_forward(
             self.current_cursor(),
@@ -47,16 +49,20 @@ class Game:
                 pygame.quit()
                 sys.exit()
 
-    def sample_input(self) -> int:
+    def sample_input(self) -> tuple[int, bool, bool]:
         speed = 0
         keys = pygame.key.get_pressed()
+
+        left_pressed = keys[pygame.K_LEFT]
+        right_pressed = keys[pygame.K_RIGHT]
+
         if keys[pygame.K_UP]:
             speed += SEGMENT_LENGTH
         if keys[pygame.K_DOWN]:
             speed -= SEGMENT_LENGTH
-        if keys[pygame.K_RIGHT]:
+        if right_pressed:
             self.playerX += 200
-        if keys[pygame.K_LEFT]:
+        if left_pressed:
             self.playerX -= 200
         if keys[pygame.K_w]:
             self.playerY += 100
@@ -66,13 +72,56 @@ class Game:
             self.playerY = 500
         if keys[pygame.K_TAB]:
             speed *= 2
-        return speed
 
-    def update(self, speed: int):
+        return speed, left_pressed, right_pressed
+
+    def _choice_overrides(self) -> dict[str, str] | None:
+        if self.pending_next_edge_id is None:
+            return None
+        return {self.current_edge_id: self.pending_next_edge_id}
+
+    def _update_pending_branch_choice(self, left_pressed: bool, right_pressed: bool):
+        edge = self.road_graph.edges[self.current_edge_id]
+
+        if len(edge.next_edge_ids) <= 1:
+            self.pending_next_edge_id = None
+            return
+
+        near_end = self.current_line_index >= len(edge.lines) - self.branch_choice_threshold
+        if not near_end:
+            self.pending_next_edge_id = None
+            return
+
+        if left_pressed and not right_pressed:
+            self.pending_next_edge_id = edge.next_edge_ids[0]
+            return
+
+        if right_pressed and not left_pressed:
+            self.pending_next_edge_id = edge.next_edge_ids[-1]
+            return
+
+        default_next = self.route_sampler.choose_next_edge_id(self.current_edge_id)
+        if default_next in edge.next_edge_ids:
+            self.pending_next_edge_id = default_next
+        else:
+            self.pending_next_edge_id = edge.next_edge_ids[0]
+
+    def update(self, speed: int, left_pressed: bool, right_pressed: bool):
+        self._update_pending_branch_choice(left_pressed, right_pressed)
+
         step_count = speed // SEGMENT_LENGTH
-        next_cursor = self.route_sampler.advance_cursor(self.current_cursor(), step_count)
+        next_cursor = self.route_sampler.advance_cursor(
+            self.current_cursor(),
+            step_count,
+            overrides=self._choice_overrides(),
+        )
+
+        edge_changed = next_cursor.edge_id != self.current_edge_id
         self.current_edge_id = next_cursor.edge_id
         self.current_line_index = next_cursor.line_index
+
+        if edge_changed:
+            self.pending_next_edge_id = None
 
         current_source_line = self.route_sampler.source_line_at_cursor(next_cursor)
 
@@ -92,7 +141,11 @@ class Game:
         self.window_surface.fill((105, 205, 4))
         draw_background(self.window_surface, self.background_surface, self.background_rect)
 
-        self.lines = self.route_sampler.sample_forward(cursor, self.sampling_window)
+        self.lines = self.route_sampler.sample_forward(
+            cursor,
+            self.sampling_window,
+            overrides=self._choice_overrides(),
+        )
 
         camH = self.lines[0].y + self.playerY
 
@@ -115,7 +168,7 @@ class Game:
             self.dt = time.time() - self.last_time
             self.last_time = time.time()
             self.handle_events()
-            speed = self.sample_input()
-            cursor = self.update(speed)
+            speed, left_pressed, right_pressed = self.sample_input()
+            cursor = self.update(speed, left_pressed, right_pressed)
             self.render(cursor)
             self.clock.tick(60)

@@ -6,6 +6,7 @@ import pygame
 from assets import load_background, load_sprites
 from renderer import draw_background, draw_road, draw_sprites
 from road_builder import build_demo_road_graph
+from route_sampler import RouteSampler
 from settings import SEGMENT_LENGTH, SHOW_N_SEGMENTS, WINDOW_HEIGHT, WINDOW_WIDTH
 
 
@@ -22,9 +23,15 @@ class Game:
 
         self.sprites = load_sprites()
         self.road_graph = build_demo_road_graph(self.sprites)
-        self.lines = self.road_graph.flatten_default_route()
+        self.route_sampler = RouteSampler(self.road_graph)
         self.route_edge_ids = list(self.road_graph.default_route_edge_ids)
-        self.n_lines = len(self.lines)
+
+        self.sampling_window = SHOW_N_SEGMENTS + 8
+        self.lines = self.route_sampler.sample_forward(
+            self.route_sampler.cursor_from_legacy_position(0),
+            self.sampling_window,
+        )
+        self.n_lines = self.route_sampler.route_cycle_length
 
         self.pos = 0
         self.playerX = 0
@@ -65,37 +72,40 @@ class Game:
         while self.pos < 0:
             self.pos += self.n_lines * SEGMENT_LENGTH
 
-        start_pos = self.pos // SEGMENT_LENGTH
+        cursor = self.route_sampler.cursor_from_legacy_position(self.pos)
+        current_source_line = self.route_sampler.source_line_at_cursor(cursor)
 
         if speed > 0:
-            self.background_rect.x -= self.lines[start_pos].curve * 2
+            self.background_rect.x -= current_source_line.curve * 2
         elif speed < 0:
-            self.background_rect.x += self.lines[start_pos].curve * 2
+            self.background_rect.x += current_source_line.curve * 2
 
         if self.background_rect.right < WINDOW_WIDTH:
             self.background_rect.x = -WINDOW_WIDTH
         elif self.background_rect.left > 0:
             self.background_rect.x = -WINDOW_WIDTH
 
-        return start_pos
+        return cursor
 
-    def render(self, start_pos: int):
+    def render(self, cursor):
         self.window_surface.fill((105, 205, 4))
         draw_background(self.window_surface, self.background_surface, self.background_rect)
 
-        camH = self.lines[start_pos].y + self.playerY
+        self.lines = self.route_sampler.sample_forward(cursor, self.sampling_window)
+
+        camH = self.lines[0].y + self.playerY
 
         draw_road(
             self.window_surface,
             self.lines,
-            start_pos,
+            0,
             SHOW_N_SEGMENTS,
             self.playerX,
             camH,
-            self.pos,
+            0,
             SEGMENT_LENGTH,
         )
-        draw_sprites(self.window_surface, self.lines, start_pos)
+        draw_sprites(self.window_surface, self.lines, 0)
 
         pygame.display.update()
 
@@ -105,6 +115,6 @@ class Game:
             self.last_time = time.time()
             self.handle_events()
             speed = self.sample_input()
-            start_pos = self.update(speed)
-            self.render(start_pos)
+            cursor = self.update(speed)
+            self.render(cursor)
             self.clock.tick(60)

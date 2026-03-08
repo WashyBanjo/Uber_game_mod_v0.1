@@ -9,7 +9,7 @@ The current refactor keeps the pseudo-3D rendering path intact while moving auth
 - `road_graph.py` defines graph topology (`Node`, `Edge`, `RoadGraph`)
 - `road_builder.py` authors multiple connected edges with branch-capable topology and a default route
 - `route_sampler.py` traverses graph edges and emits a per-frame forward line ribbon
-- `game.py` maps legacy `pos` to a graph cursor and renders from sampled ribbons while keeping controls/movement model
+- `game.py` owns graph-relative vehicle cursor state (`edge_id`, `line_index`) and renders from sampled ribbons while keeping controls/movement model
 
 ## Run
 

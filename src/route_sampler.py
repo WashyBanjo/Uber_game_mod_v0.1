@@ -26,17 +26,22 @@ class RouteSampler:
         self.route_cycle_length = offset
 
         self._default_route_next: dict[str, str] = {}
+        self._default_route_prev: dict[str, str] = {}
         for i, edge_id in enumerate(self.default_route_edge_ids):
             next_edge = self.default_route_edge_ids[(i + 1) % len(self.default_route_edge_ids)]
+            prev_edge = self.default_route_edge_ids[(i - 1) % len(self.default_route_edge_ids)]
             self._default_route_next[edge_id] = next_edge
+            self._default_route_prev[edge_id] = prev_edge
+
+    def initial_cursor(self) -> RouteSampleCursor:
+        return RouteSampleCursor(edge_id=self.default_route_edge_ids[0], line_index=0)
 
     def cursor_from_legacy_position(self, pos: int) -> RouteSampleCursor:
         route_index = (pos // SEGMENT_LENGTH) % self.route_cycle_length
         for edge_id, offset, edge_len in self._default_route_offsets:
             if route_index < offset + edge_len:
                 return RouteSampleCursor(edge_id=edge_id, line_index=route_index - offset)
-        fallback_edge_id = self.default_route_edge_ids[0]
-        return RouteSampleCursor(edge_id=fallback_edge_id, line_index=0)
+        return self.initial_cursor()
 
     def source_line_at_cursor(self, cursor: RouteSampleCursor) -> Line:
         edge = self.road_graph.edges[cursor.edge_id]
@@ -47,6 +52,37 @@ class RouteSampler:
         if edge.next_edge_ids:
             return edge.next_edge_ids[0]
         return self._default_route_next.get(edge_id, self.default_route_edge_ids[0])
+
+    def _prev_edge_id(self, edge_id: str) -> str:
+        return self._default_route_prev.get(edge_id, self.default_route_edge_ids[-1])
+
+    def advance_cursor(self, cursor: RouteSampleCursor, steps: int) -> RouteSampleCursor:
+        if steps == 0:
+            return RouteSampleCursor(cursor.edge_id, cursor.line_index)
+
+        edge_id = cursor.edge_id
+        line_index = cursor.line_index
+
+        if steps > 0:
+            remaining = steps
+            while remaining > 0:
+                edge = self.road_graph.edges[edge_id]
+                line_index += 1
+                if line_index >= len(edge.lines):
+                    edge_id = self._next_edge_id(edge_id)
+                    line_index = 0
+                remaining -= 1
+        else:
+            remaining = -steps
+            while remaining > 0:
+                line_index -= 1
+                if line_index < 0:
+                    edge_id = self._prev_edge_id(edge_id)
+                    prev_edge = self.road_graph.edges[edge_id]
+                    line_index = len(prev_edge.lines) - 1
+                remaining -= 1
+
+        return RouteSampleCursor(edge_id=edge_id, line_index=line_index)
 
     def _clone_line(self, source_line: Line, index: int) -> Line:
         line = Line(index)

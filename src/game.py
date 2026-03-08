@@ -6,7 +6,7 @@ import pygame
 from assets import load_background, load_sprites
 from renderer import draw_background, draw_road, draw_sprites
 from road_builder import build_demo_road_graph
-from route_sampler import RouteSampler
+from route_sampler import RouteSampleCursor, RouteSampler
 from settings import SEGMENT_LENGTH, SHOW_N_SEGMENTS, WINDOW_HEIGHT, WINDOW_WIDTH
 
 
@@ -26,16 +26,20 @@ class Game:
         self.route_sampler = RouteSampler(self.road_graph)
         self.route_edge_ids = list(self.road_graph.default_route_edge_ids)
 
+        self.current_edge_id = self.route_edge_ids[0]
+        self.current_line_index = 0
+
         self.sampling_window = SHOW_N_SEGMENTS + 8
         self.lines = self.route_sampler.sample_forward(
-            self.route_sampler.cursor_from_legacy_position(0),
+            self.current_cursor(),
             self.sampling_window,
         )
-        self.n_lines = self.route_sampler.route_cycle_length
 
-        self.pos = 0
         self.playerX = 0
         self.playerY = 1500
+
+    def current_cursor(self) -> RouteSampleCursor:
+        return RouteSampleCursor(self.current_edge_id, self.current_line_index)
 
     def handle_events(self):
         for event in pygame.event.get([pygame.QUIT]):
@@ -65,15 +69,12 @@ class Game:
         return speed
 
     def update(self, speed: int):
-        self.pos += speed
+        step_count = speed // SEGMENT_LENGTH
+        next_cursor = self.route_sampler.advance_cursor(self.current_cursor(), step_count)
+        self.current_edge_id = next_cursor.edge_id
+        self.current_line_index = next_cursor.line_index
 
-        while self.pos >= self.n_lines * SEGMENT_LENGTH:
-            self.pos -= self.n_lines * SEGMENT_LENGTH
-        while self.pos < 0:
-            self.pos += self.n_lines * SEGMENT_LENGTH
-
-        cursor = self.route_sampler.cursor_from_legacy_position(self.pos)
-        current_source_line = self.route_sampler.source_line_at_cursor(cursor)
+        current_source_line = self.route_sampler.source_line_at_cursor(next_cursor)
 
         if speed > 0:
             self.background_rect.x -= current_source_line.curve * 2
@@ -85,9 +86,9 @@ class Game:
         elif self.background_rect.left > 0:
             self.background_rect.x = -WINDOW_WIDTH
 
-        return cursor
+        return next_cursor
 
-    def render(self, cursor):
+    def render(self, cursor: RouteSampleCursor):
         self.window_surface.fill((105, 205, 4))
         draw_background(self.window_surface, self.background_surface, self.background_rect)
 

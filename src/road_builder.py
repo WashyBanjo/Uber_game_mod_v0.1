@@ -51,15 +51,15 @@ def _apply_sprite_pattern(
             line.sprite = sprite
 
 
-def build_demo_graph(sprites: List[pygame.Surface]) -> RoadGraph:
+def build_demo_road_graph(sprites: List[pygame.Surface]) -> RoadGraph:
     graph = RoadGraph()
 
-    graph.add_node(Node("A", 0, 0))
-    graph.add_node(Node("B", 100, 0))
-    graph.add_node(Node("C", 200, 20))
-    graph.add_node(Node("D", 180, -80))
-    graph.add_node(Node("E", 300, -10))
-    graph.add_node(Node("F", 330, 80))
+    graph.add_node(Node("A", (0, 0)))
+    graph.add_node(Node("B", (100, 0)))
+    graph.add_node(Node("C", (200, 20)))
+    graph.add_node(Node("D", (180, -80)))
+    graph.add_node(Node("E", (300, -10)))
+    graph.add_node(Node("F", (330, 80)))
 
     edge_main_0_lines = _make_edge_lines(300)
     _apply_sprite_pattern(edge_main_0_lines, sprites[4], -2.5, 20)

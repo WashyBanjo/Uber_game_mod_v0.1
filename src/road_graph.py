@@ -7,8 +7,7 @@ from settings import SEGMENT_LENGTH
 @dataclass
 class Node:
     id: str
-    world_x: float = 0.0
-    world_y: float = 0.0
+    world_pos: tuple[float, float] | None = None
 
 
 @dataclass

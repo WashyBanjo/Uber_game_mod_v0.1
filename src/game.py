@@ -5,7 +5,7 @@ import pygame
 
 from assets import load_background, load_sprites
 from renderer import draw_background, draw_road, draw_sprites
-from road_builder import build_demo_road
+from road_builder import build_demo_graph
 from settings import SEGMENT_LENGTH, SHOW_N_SEGMENTS, WINDOW_HEIGHT, WINDOW_WIDTH
 
 
@@ -21,7 +21,9 @@ class Game:
         self.window_surface.blit(self.background_surface, self.background_rect)
 
         self.sprites = load_sprites()
-        self.lines = build_demo_road(self.sprites)
+        self.road_graph = build_demo_graph(self.sprites)
+        self.lines = self.road_graph.flatten_default_route()
+        self.route_edge_ids = list(self.road_graph.default_route_edge_ids)
         self.n_lines = len(self.lines)
 
         self.pos = 0

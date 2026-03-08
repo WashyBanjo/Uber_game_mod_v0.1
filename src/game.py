@@ -86,6 +86,16 @@ class Game:
             return None
         return {self.current_edge_id: self.pending_next_edge_id}
 
+    def _default_pending_for_edge(self, edge_id: str) -> str | None:
+        edge = self.road_graph.edges[edge_id]
+        if not edge.next_edge_ids:
+            return None
+
+        default_next = self.route_sampler.choose_next_edge_id(edge_id)
+        if default_next in edge.next_edge_ids:
+            return default_next
+        return edge.next_edge_ids[0]
+
     def _update_pending_branch_choice(self, left_pressed: bool, right_pressed: bool):
         edge = self.road_graph.edges[self.current_edge_id]
 
@@ -98,6 +108,9 @@ class Game:
             self.pending_next_edge_id = None
             return
 
+        if self.pending_next_edge_id not in edge.next_edge_ids:
+            self.pending_next_edge_id = self._default_pending_for_edge(self.current_edge_id)
+
         if left_pressed and not right_pressed:
             self.pending_next_edge_id = edge.next_edge_ids[0]
             return
@@ -106,11 +119,8 @@ class Game:
             self.pending_next_edge_id = edge.next_edge_ids[-1]
             return
 
-        default_next = self.route_sampler.choose_next_edge_id(self.current_edge_id)
-        if default_next in edge.next_edge_ids:
-            self.pending_next_edge_id = default_next
-        else:
-            self.pending_next_edge_id = edge.next_edge_ids[0]
+        if self.pending_next_edge_id is None:
+            self.pending_next_edge_id = self._default_pending_for_edge(self.current_edge_id)
 
     def update(self, speed: int, left_pressed: bool, right_pressed: bool):
         self._update_pending_branch_choice(left_pressed, right_pressed)

@@ -51,6 +51,30 @@ def _apply_sprite_pattern(
             line.sprite = sprite
 
 
+def _match_edge_join_heights(
+    source_lines: list[Line],
+    dest_lines: list[Line],
+    blend_count: int = 28,
+):
+    if not source_lines or not dest_lines:
+        return
+
+    seam_y = source_lines[-1].y
+    source_slope = 0.0
+    if len(source_lines) > 1:
+        source_slope = source_lines[-1].y - source_lines[-2].y
+
+    offset = seam_y - dest_lines[0].y
+    for line in dest_lines:
+        line.y += offset
+
+    blend_len = min(blend_count, len(dest_lines))
+    for i in range(blend_len):
+        target_y = seam_y + source_slope * (i + 1)
+        keep_ratio = (i + 1) / blend_len
+        dest_lines[i].y = target_y * (1.0 - keep_ratio) + dest_lines[i].y * keep_ratio
+
+
 def build_demo_road_graph(sprites: List[pygame.Surface]) -> RoadGraph:
     graph = RoadGraph()
 
@@ -94,6 +118,30 @@ def build_demo_road_graph(sprites: List[pygame.Surface]) -> RoadGraph:
     edge_spur_lines = _make_edge_lines(140)
     _apply_curve(edge_spur_lines, 10, 130, 0.6)
     _apply_sprite_pattern(edge_spur_lines, sprites[6], -1.2, 35)
+
+    edge_lines = {
+        "main_0": edge_main_0_lines,
+        "main_1": edge_main_1_lines,
+        "main_2": edge_main_2_lines,
+        "loop_back": edge_loop_lines,
+        "branch_up": edge_branch_up_lines,
+        "branch_rejoin": edge_branch_rejoin_lines,
+        "spur": edge_spur_lines,
+    }
+
+    seam_pairs = [
+        ("main_0", "main_1"),
+        ("main_0", "branch_up"),
+        ("main_1", "main_2"),
+        ("main_1", "spur"),
+        ("main_2", "loop_back"),
+        ("loop_back", "main_1"),
+        ("loop_back", "branch_up"),
+        ("branch_up", "branch_rejoin"),
+        ("branch_rejoin", "loop_back"),
+    ]
+    for source_id, dest_id in seam_pairs:
+        _match_edge_join_heights(edge_lines[source_id], edge_lines[dest_id])
 
     graph.add_edge(Edge("main_0", "A", "B", edge_main_0_lines, ["main_1", "branch_up"]))
     graph.add_edge(Edge("main_1", "B", "C", edge_main_1_lines, ["main_2", "spur"]))

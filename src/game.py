@@ -4,6 +4,7 @@ import time
 import pygame
 
 from assets import load_background, load_sprites
+from debug_overlay import draw_debug_overlay
 from renderer import draw_background, draw_road, draw_sprites
 from road_builder import build_demo_road_graph
 from route_sampler import RouteSampleCursor, RouteSampler
@@ -36,6 +37,9 @@ class Game:
             self.current_cursor(),
             self.sampling_window,
         )
+        self.sampled_edge_ids: list[str] = []
+
+        self.show_debug_overlay = True
 
         self.playerX = 0
         self.playerY = 1500
@@ -44,10 +48,12 @@ class Game:
         return RouteSampleCursor(self.current_edge_id, self.current_line_index)
 
     def handle_events(self):
-        for event in pygame.event.get([pygame.QUIT]):
+        for event in pygame.event.get([pygame.QUIT, pygame.KEYDOWN]):
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_m:
+                self.show_debug_overlay = not self.show_debug_overlay
 
     def sample_input(self) -> tuple[int, bool, bool]:
         speed = 0
@@ -141,7 +147,7 @@ class Game:
         self.window_surface.fill((105, 205, 4))
         draw_background(self.window_surface, self.background_surface, self.background_rect)
 
-        self.lines = self.route_sampler.sample_forward(
+        self.lines, self.sampled_edge_ids = self.route_sampler.sample_forward_with_edges(
             cursor,
             self.sampling_window,
             overrides=self._choice_overrides(),
@@ -160,6 +166,15 @@ class Game:
             SEGMENT_LENGTH,
         )
         draw_sprites(self.window_surface, self.lines, 0)
+
+        if self.show_debug_overlay:
+            draw_debug_overlay(
+                self.window_surface,
+                self.road_graph,
+                cursor,
+                self.pending_next_edge_id,
+                self.sampled_edge_ids,
+            )
 
         pygame.display.update()
 

@@ -118,6 +118,36 @@ class RouteSampler:
         line.road_color = source_line.road_color
         return line
 
+
+    def sample_forward_with_edges(
+        self,
+        cursor: RouteSampleCursor,
+        n_segments: int,
+        overrides: dict[str, str] | None = None,
+    ) -> tuple[list[Line], list[str]]:
+        sampled: list[Line] = []
+        traversed_edge_ids: list[str] = []
+
+        current_edge_id = cursor.edge_id
+        local_index = cursor.line_index
+
+        while len(sampled) < n_segments:
+            edge = self.road_graph.edges[current_edge_id]
+            if not traversed_edge_ids or traversed_edge_ids[-1] != current_edge_id:
+                traversed_edge_ids.append(current_edge_id)
+
+            while local_index < len(edge.lines) and len(sampled) < n_segments:
+                sampled.append(self._clone_line(edge.lines[local_index], len(sampled)))
+                local_index += 1
+
+            if len(sampled) >= n_segments:
+                break
+
+            current_edge_id = self.choose_next_edge_id(current_edge_id, overrides=overrides)
+            local_index = 0
+
+        return sampled, traversed_edge_ids
+
     def sample_forward(
         self,
         cursor: RouteSampleCursor,
